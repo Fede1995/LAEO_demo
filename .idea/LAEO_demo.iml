@@ -7,7 +7,7 @@
       <excludeFolder url="file://$MODULE_DIR$/ogl_viewer" />
       <excludeFolder url="file://$MODULE_DIR$/utility files" />
     </content>
-    <orderEntry type="jdk" jdkName="Python 3.8 (LAEO_demo_minimal)" jdkType="Python SDK" />
+    <orderEntry type="jdk" jdkName="Python 3.8 (InteractionComputation)" jdkType="Python SDK" />
     <orderEntry type="sourceFolder" forTests="false" />
   </component>
 </module>
