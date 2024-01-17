@@ -3,6 +3,8 @@
    modelised skeleton in an window
    Calculate the direction of view form face keypoints and draw the view line.
    The line is coloured: GREEN -> high ocular interaction, BLACk -> low interaction
+
+   IMPORTANT: Requiremnets for this file are diff
 """
 import argparse
 import logging
