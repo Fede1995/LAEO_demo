@@ -235,15 +235,15 @@ def draw_axis(yaw, pitch, roll, image=None, tdx=None, tdy=None, size=50):
     x2 = size * (-cos(yaw) * sin(roll)) + tdx
     y2 = size * (cos(pitch) * cos(roll) - sin(pitch) * sin(yaw) * sin(roll)) + tdy
 
-    # Z-Axis (out of the screen) drawn in blue
+    # Z-Axis (out of the screen) drawn in yellow #it was blue
     x3 = size * (sin(yaw)) + tdx
     y3 = size * (-cos(yaw) * sin(pitch)) + tdy
     z3 = size * (cos(pitch) * cos(yaw)) + tdy
 
     if image is not None:
-        cv2.line(image, (int(tdx), int(tdy)), (int(x1), int(y1)), (0, 0, 255), 2)
-        cv2.line(image, (int(tdx), int(tdy)), (int(x2), int(y2)), (0, 255, 0), 2)
-        cv2.line(image, (int(tdx), int(tdy)), (int(x3), int(y3)), (255, 0, 0), 2)
+        cv2.line(image, (int(tdx), int(tdy)), (int(x1), int(y1)), (0, 0, 255), 2) # BGR->red
+        cv2.line(image, (int(tdx), int(tdy)), (int(x2), int(y2)), (0, 255, 0), 2) # BGR->green
+        cv2.line(image, (int(tdx), int(tdy)), (int(x3), int(y3)), (0, 255, 255), 2) # BGR->blue
 
     list_projection_xy = [sin(yaw), -cos(yaw) * sin(pitch)]
     return list_projection_xy
@@ -268,7 +268,7 @@ def visualize_vector(image, center, unit_vector, title="", color=(0, 0, 255)):
     unit_vector_draw = [unit_vector[0] * image.shape[0]*0.15, unit_vector[1] * image.shape[0]*0.15]
     point = [center[0] + unit_vector_draw[0], center[1] + unit_vector_draw[1]]
 
-    result = cv2.arrowedLine(image, (int(center[0]), int(center[1])), (int(point[0]), int(point[1])), color, thickness=2, tipLength=0.2)
+    result = cv2.arrowedLine(image, (int(center[0]), int(center[1])), (int(point[0]), int(point[1])), color, thickness=4, tipLength=0.3)
 
     return result
 
@@ -297,16 +297,16 @@ def draw_key_points_pose(image, kpt, openpose=False):
     for j in range(len(kpt)):
         # 0 nose, 1/2 left/right eye, 3/4 left/right ear
         color = color_pose["blue"]
-        if j == face_pts[0]:  # naso
-            color = color_pose["purple"]
+        if j == face_pts[0]:
+            color = color_pose["purple"]# naso
         if j == face_pts[1]:
-            color = color_pose["light_pink"]
+            color = color_pose["green"]#["light_pink"]#Leye
         if j == face_pts[2]:
-            color = color_pose["dark_pink"]
+            color = color_pose["dark_pink"]#Reye
         if j == face_pts[3]:
-            color = color_pose["light_orange"]
+            color = color_pose["light_orange"]#LEar
         if j == face_pts[4]:
-            color = color_pose["dark_orange"]
+            color = color_pose["yellow"]# REar
         if openpose:
             cv2.circle(image, (int(kpt[j][0]), int(kpt[j][1])), 1, color, 2)
         else:

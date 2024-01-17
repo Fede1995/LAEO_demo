@@ -5,8 +5,8 @@
    The line is coloured: GREEN -> high ocular interaction, BLACk -> low interaction
 """
 import argparse
+import logging
 import os
-from pathlib import Path
 
 import cv2
 import numpy as np
@@ -75,8 +75,15 @@ def initialize_zed_camera(input_file=None):
     return zed, runtime_parameters
 
 
-def load_image():
-    pass
+def load_image(camera, ):
+    # Capture the video frame by frame
+    try:
+        ret, frame = camera.read()
+        return True, frame
+    except:
+        logging.Logger('Error reading frame')
+        return False, None
+
 
 
 def infer_ypr():
@@ -238,9 +245,9 @@ def extract_keypoints_centernet(path_to_model, zed, gaze_model_path, rgb=False):
     # params
     min_score_thresh, max_boxes_to_draw, min_distance = .45, 50, 1.5
 
-    camera_info = zed.get_camera_information()
-    display_resolution = sl.Resolution(min(camera_info.camera_resolution.width, 1280),
-                                       min(camera_info.camera_resolution.height, 720))
+    # camera_info = zed.get_camera_information()
+    # display_resolution = sl.Resolution(min(camera_info.camera_resolution.width, 1280),
+    #                                    min(camera_info.camera_resolution.height, 720))
     # call HPE
     print('load hpe')
     gaze_model = tf.keras.models.load_model(gaze_model_path, custom_objects={"tf": tf})
@@ -352,76 +359,111 @@ def extract_keypoints_centernet(path_to_model, zed, gaze_model_path, rgb=False):
     # Disable modules and close camera
     zed.close()
 
-def extract_keypoints_centernet_NO_ZED(path_to_model, path_to_file, gaze_model_path, rgb=False, save=False):
-    """
 
-    :param model:
-    """
+if __name__ == "__main__":
+    """Example of usage:
+            -m zed
+            [-f /media/DATA/Users/Federico/Zed_Images/HD720_SN24782978_14-06-59.svo]
+        or 
+            -m centernet
+            [-f /your_file]
+        m: identifies the keypoints extractor algorithm
+        f: a pre-recorded zedcam file, .svo format"""
 
-    model = tf.saved_model.load(os.path.join(path_to_model, 'saved_model'))
-    # model = tf.keras.models.load_model(gaze_model_path, custom_objects={"tf": tf})
+    ap = argparse.ArgumentParser()
+    ap.add_argument("-m", "--model", type=str, default=None, help="path to the model", required=True)
+    ap.add_argument("-wc", "--webcam", type=bool, default=False, help="webcam or zedcam, default zedcam", required=False)
+    ap.add_argument("-f", "--input-file", type=str, default=None, help="input a SVO file", required=False)
+    config = ap.parse_args()
 
-    input_shape_od_model = (512, 512)
-
-
-    # params
-    min_score_thresh, max_boxes_to_draw, min_distance = .45, 50, 1.5
-
-
-    # call HPE
-    print('load hpe')
-    gaze_model = tf.keras.models.load_model(gaze_model_path, custom_objects={"tf": tf})
-
-    # tracker stuff
-    mot_tracker = Sort(max_age=20, min_hits=1, iou_threshold=0.4)
-
-
-
-    vid_capture = cv2.VideoCapture(str(path_to_file))
-    if (vid_capture.isOpened()==False):
-        print("Error opening the video file")
+    # choose between real time and pre-recorded file
+    if config.input_file is not None:
+        print('video file {}'.format(config.input_file))
     else:
-        # Get frame rate information
+        print('real time camera acquisition')
 
-        fps = int(vid_capture.get(5))
-        print("Frame Rate : ", fps, "frames per second")
+    if not config.webcam: # zedcam in use
+        # initialize zedcam with the proper function
+        zed, run_parameters = initialize_zed_camera(input_file=config.input_file)
 
-        # Get frame count
-        frame_count = vid_capture.get(7)
-        print("Frame count : ", frame_count)
+        # choose the keypoints extractor algorithm and run it on every frame, here the program remains until finished
+        if str(config.model).lower()=='zed':
+            print('start zedcam keypoint extractor')
+            print("Num GPUs Available: ", len(tf.config.list_physical_devices('GPU')))
+            extract_keypoints_zedcam(zed=zed)  # everything performed with stereolabs SDK
+        elif str(config.model).lower()=='centernet':
+            print('start centernet keypoint extractor')
+            # path_to_model = '/media/DATA/Users/Federico/centernet_hg104_512x512_kpts_coco17_tpu-32'
+            # path to your centernet model: https://tfhub.dev/tensorflow/centernet/resnet50v2_512x512/1
+            path_to_model = '/home/federico/Documents/Models_trained/keypoint_detector/centernet_hg104_512x512_kpts_coco17_tpu-32'
+            if not os.path.isdir(path_to_model):
+                path_to_model = '/home/federico/Documents/Models_trained/keypoint_detector/centernet_hg104_512x512_kpts_coco17_tpu-32'
+                if not os.path.isdir(path_to_model):
+                    raise IOError('path for model is incorrect, cannot find centernet model')
 
-        # Obtain frame size information using get() method
-        # frame_width = vid_capture.get(cv2.cv.CV_CAP_PROP_FRAME_WIDTH)  # float `width`
-        # frame_height = vid_capture.get(cv2.cv.CV_CAP_PROP_FRAME_HEIGHT)  # float `height`
-        frame_width = int(vid_capture.get(3))
-        frame_height = int(vid_capture.get(4))
+            # tf.keras.backend.clear_session()
 
-    frame_size = (frame_width, frame_height)
+            print("Num GPUs Available: ", len(tf.config.list_physical_devices('GPU')))
+            # gpus = tf.config.list_physical_devices('GPU')
 
-    # Initialize video writer object
+            # with tf.device(gpus[0]):
 
-    if save:
-        dest_video = Path(path_to_file).parent / (str(Path(path_to_file).stem) + '_out.mp4')
-        print(f'saving at {str(dest_video)}')
-        output = cv2.VideoWriter(str(dest_video), cv2.VideoWriter_fourcc('M', 'J', 'P', 'G'), fps,
-                             frame_size)
+            # path_to_model = tf.compat.v1.saved_model.load(os.path.join(path_to_model, 'saved_model'))
+            print('start centernet')
+            gaze_model_path = '/home/federico/Documents/Models_trained/head_pose_estimation'
+            extract_keypoints_centernet(path_to_model, zed, gaze_model_path=gaze_model_path)
+        elif str(config.model).lower()=='openpose':
+            print('openpose')
+            raise NotImplementedError
+        else:
+            print('wrong input for model value')
+            raise IOError('wrong model name. Try with \'zed\' or \'centernet\' ')  # probably not correct error
+    else: # webcam in use
+        # define a video capture object
+        camera = cv2.VideoCapture(0)
 
-    counter =0
-    while (vid_capture.isOpened()):
-        # vCapture.read() methods returns a tuple, first element is a bool
-        # and the second is frame
+        mot_tracker = Sort(max_age=20, min_hits=1, iou_threshold=0.4)
+
+        print('load hpe')
+        gaze_model_path = '/home/federico/Documents/Models_trained/head_pose_estimation'
+        gaze_model = tf.keras.models.load_model(gaze_model_path, custom_objects={"tf": tf})
+
+        print('start centernet keypoint extractor')
+        # path_to_model = '/media/DATA/Users/Federico/centernet_hg104_512x512_kpts_coco17_tpu-32'
+        # path to your centernet model: https://tfhub.dev/tensorflow/centernet/resnet50v2_512x512/1
+        path_to_model = '/home/federico/Documents/Models_trained/keypoint_detector/centernet_hg104_512x512_kpts_coco17_tpu-32'
+        if not os.path.isdir(path_to_model):
+            path_to_model = '/home/federico/Documents/Models_trained/keypoint_detector/centernet_hg104_512x512_kpts_coco17_tpu-32'
+            if not os.path.isdir(path_to_model):
+                raise IOError('path for model is incorrect, cannot find centernet model')
+
+        model = tf.saved_model.load(os.path.join(path_to_model, 'saved_model'))
+
+        input_shape_od_model = (512, 512)
+        # params
+        min_score_thresh, max_boxes_to_draw, min_distance = .45, 50, 1.5
+
+        print("Num GPUs Available: ", len(tf.config.list_physical_devices('GPU')))
+        # gpus = tf.config.list_physical_devices('GPU')
+
+        flag, img = load_image(camera)
 
 
-        ret, img = vid_capture.read()
-        if ret==True:
-            print(f'image retrieved {counter}')
-            counter+=1
+        while flag:
+            # Use Flip code 0 to flip vertically, 1 to flip horizontally and -1 to flip both
+            img = cv2.flip(img, 1)
+            # do something
+
+
+            # with tf.device(gpus[0]):
+
+            # img = np.array(frame)
+            rgb=False
             if not rgb:
                 img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
                 img = cv2.cvtColor(img, cv2.COLOR_GRAY2RGB)
 
             img_resized, new_old_shape = resize_preserving_ar(img, input_shape_od_model)
-
 
             print('inference centernet')
             detections, elapsed_time = detect(model, img_resized, min_score_thresh,
@@ -451,128 +493,46 @@ def extract_keypoints_centernet_NO_ZED(path_to_model, path_to_file, gaze_model_p
                 # img = draw_axis_3d(yaw[0].numpy()[0], pitch[0].numpy()[0], roll[0].numpy()[0], image=img, tdx=tdx, tdy=tdy,
                 #                    size=50)
 
-                people_list.append({'yaw': yaw[0].numpy()[0],
-                                    'yaw_u': 0,
-                                    'pitch': pitch[0].numpy()[0],
-                                    'pitch_u': 0,
-                                    'roll': roll[0].numpy()[0],
-                                    'roll_u': 0,
-                                    'center_xy': [tdx, tdy]})
+                people_list.append({'yaw'      : yaw[0].numpy()[0],
+                                    'yaw_u'    : 0,
+                                    'pitch'    : pitch[0].numpy()[0],
+                                    'pitch_u'  : 0,
+                                    'roll'     : roll[0].numpy()[0],
+                                    'roll_u'   : 0,
+                                    'center_xy': [tdx, tdy]
+                                    })
 
             for i in range(len(det)):
                 img = draw_key_points_pose(img, kpt[i])
-            # img = draw_axis(yaw[i], pitch[i], roll[i], image=img, tdx=center_xy[0], tdy=center_xy[1], size=50) #single person
 
             # call LAEO
             clip_uncertainty = 0.5
             binarize_uncertainty = False
-            interaction_matrix = LAEO_computation(people_list, clipping_value=clip_uncertainty, clip=binarize_uncertainty)
+            interaction_matrix = LAEO_computation(people_list, clipping_value=clip_uncertainty,
+                                                  clip=binarize_uncertainty)
             # coloured arrow print per person
-
-
-            print('before cv2')
-
+            # TODO coloured arrow print per person
             for index, person in enumerate(people_list):
-                red = green = round((max(interaction_matrix[index, :])) * 255)
-                colour = (0, green, 255-green)
+                green = round((max(interaction_matrix[index, :])) * 255)
+                colour = (0, green, 0)
+                if green < 40:
+                    colour = (0, 0, 255)
                 vector = project_ypr_in2d(person['yaw'], person['pitch'], person['roll'])
-                img = visualize_vector(img, person['center_xy'], vector, title="", color=colour)
-            cv2.namedWindow('MaLGa Lab Demo', cv2.WINDOW_NORMAL)
+                img = visualize_vector(img, person['center_xy'], vector, title="",
+                                                  color=colour)
+            cv2.namedWindow('MaLGa Lab Demo') # , cv2.WINDOW_NORMAL
             cv2.imshow('MaLGa Lab Demo', img)
-            if save:
-                output.write(img)
-            # cv2.resizeWindow('MaLGa Lab Demo', 400, 400)
 
-            print('after cv2')
 
-            try:
-                laeo_1, laeo_2 = (np.unravel_index(np.argmax(interaction_matrix, axis=None), interaction_matrix.shape))
-                # print something around face
-            except:
-                pass
             # the 'q' button is set as the
             # quitting button you may use any
             # desired button of your choice
-            if cv2.waitKey(1) & 0xFF == ord('q'):
+            if cv2.waitKey(1) & 0xFF==ord('q'):
                 break
+            # Update the flag and frame as last step of the loop
+            flag, img = load_image(camera)
 
-        # save_key_points_to_json(kpts, path_json + ".json")
-
-        # XYZ = retrieve_xyz_from_detection(detections['detection_boxes_centroid'], pc_img)
-        # _, violate, couple_points = compute_distance(XYZ, min_distance)
-        # img_with_violations = draw_detections(img, detections, max_boxes_to_draw, violate, couple_points)
-        else:
-            # Release the objects
-            vid_capture.release()
-            if save:
-                output.release()
-
-    cv2.destroyAllWindows()
-
-
-
-if __name__ == "__main__":
-    """Example of usage:
-            -m zed
-            [-f /media/DATA/Users/Federico/Zed_Images/HD720_SN24782978_14-06-59.svo]
-        or 
-            -m centernet
-            [-f /your_file]
-        m: identifies the keypoints extractor algorithm
-        f: a pre-recorded zedcam file, .svo format"""
-
-    ap = argparse.ArgumentParser()
-    ap.add_argument("-m", "--model", type=str, default=None, help="path to the model", required=True)
-    ap.add_argument("-f", "--input-file", type=str, default=None, help="input a SVO file", required=False)
-    ap.add_argument("-nz", "--no-zedcam", type=bool, default=False, help="It uses a video from a mp4", required=False)
-    config = ap.parse_args()
-
-    no_zed = config.no_zedcam
-
-    # choose between real time and pre-recorded file
-    if config.input_file is not None:
-        print('video file {}'.format(config.input_file))
-    else:
-        print('real time camera acquisition')
-
-    # initialize zedcam with the proper function
-    if no_zed:
-        pass
-    else:
-        zed, run_parameters = initialize_zed_camera(input_file=config.input_file)
-
-    # choose the keypoints extractor algorithm and run it on every frame, here the program remains until finished
-    if str(config.model).lower() == 'zed':
-        print('start zedcam keypoint extractor')
-        print("Num GPUs Available: ", len(tf.config.list_physical_devices('GPU')))
-        extract_keypoints_zedcam(zed=zed)  # everything performed with stereolabs SDK
-    elif str(config.model).lower() == 'centernet':
-        print('start centernet keypoint extractor')
-        # path_to_model = '/media/DATA/Users/Federico/centernet_hg104_512x512_kpts_coco17_tpu-32'
-        # path to your centernet model: https://tfhub.dev/tensorflow/centernet/resnet50v2_512x512/1
-        path_to_model = '/home/federico/Documents/Models_trained/keypoint_detector/centernet_hg104_512x512_kpts_coco17_tpu-32'
-        if not os.path.isdir(path_to_model):
-            path_to_model = '/home/federico/Documents/Models_trained/keypoint_detector/centernet_hg104_512x512_kpts_coco17_tpu-32'
-            if not os.path.isdir(path_to_model):
-                raise IOError('path for model is incorrect, cannot find centernet model')
-
-        # tf.keras.backend.clear_session()
-
-        print("Num GPUs Available: ", len(tf.config.list_physical_devices('GPU')))
-        # gpus = tf.config.list_physical_devices('GPU')
-
-        # with tf.device(gpus[0]):
-
-        # path_to_model = tf.compat.v1.saved_model.load(os.path.join(path_to_model, 'saved_model'))
-        print('start centernet')
-        gaze_model_path = '/home/federico/Documents/Models_trained/head_pose_estimation'
-        if no_zed:
-            extract_keypoints_centernet_NO_ZED(path_to_model, path_to_file=config.input_file, gaze_model_path=gaze_model_path, save=True)
-        else:
-            extract_keypoints_centernet(path_to_model, zed, gaze_model_path=gaze_model_path)
-    elif str(config.model).lower() == 'openpose':
-        print('openpose')
-        raise NotImplementedError
-    else:
-        print('wrong input for model value')
-        raise IOError('wrong model name. Try with \'zed\' or \'centernet\' ') # probably not correct error
+        # After the loop release the cap object
+        camera.release()
+        # Destroy all the windows
+        cv2.destroyAllWindows()

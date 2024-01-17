@@ -112,7 +112,7 @@ def delete_file_if_exist(*file_path):
 
 
 def LAEO_computation(people_list, clipping_value, clip):
-    #TODO here correct the average because -> 0+0.99-> LAEO
+    #TODO here correct the average because -> 0+0.99-> LAEO, already corrected a bit
     people_in_frame = len(people_list)
 
     # create empty matrix with one entry per person in frame
@@ -146,8 +146,11 @@ def LAEO_computation(people_list, clipping_value, clip):
     for subject in range(people_in_frame):
         for object in range(people_in_frame):
             # take average of previous matrix
-            v = (matrix[subject][object] + matrix[object][subject]) / 2
-            interaction_matrix[subject][object] = v
+            if matrix[subject][object] > 0.3 and matrix[object][subject] > 0.3:
+                v = (matrix[subject][object] + matrix[object][subject]) / 2
+                interaction_matrix[subject][object] = v
+            else:
+                interaction_matrix[subject][object] = 0
 
     return interaction_matrix
 
